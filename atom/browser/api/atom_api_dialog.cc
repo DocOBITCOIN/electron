@@ -16,6 +16,7 @@
 #include "atom/common/native_mate_converters/file_path_converter.h"
 #include "atom/common/native_mate_converters/image_converter.h"
 #include "atom/common/native_mate_converters/net_converter.h"
+#include "atom/common/promise_util.h"
 #include "native_mate/dictionary.h"
 
 #include "atom/common/node_includes.h"
@@ -65,18 +66,21 @@ void ShowOpenDialog(const file_dialog::DialogSettings& settings,
   }
 }
 
-void ShowSaveDialog(const file_dialog::DialogSettings& settings,
-                    mate::Arguments* args) {
-  v8::Local<v8::Value> peek = args->PeekNext();
-  file_dialog::SaveDialogCallback callback;
-  if (mate::Converter<file_dialog::SaveDialogCallback>::FromV8(
-          args->isolate(), peek, &callback)) {
-    file_dialog::ShowSaveDialog(settings, callback);
-  } else {
-    base::FilePath path;
-    if (file_dialog::ShowSaveDialog(settings, &path))
-      args->Return(path);
-  }
+void ShowSaveDialogSync(const file_dialog::DialogSettings& settings,
+                        mate::Arguments* args) {
+  base::FilePath path;
+  if (file_dialog::ShowSaveDialogSync(settings, &path))
+    args->Return(path);
+}
+
+v8::Local<v8::Promise> ShowSaveDialog(
+    const file_dialog::DialogSettings& settings,
+    mate::Arguments* args) {
+  atom::util::Promise promise(args->isolate());
+  v8::Local<v8::Promise> handle = promise.GetHandle();
+
+  file_dialog::ShowSaveDialog(settings, std::move(promise));
+  return handle;
 }
 
 void Initialize(v8::Local<v8::Object> exports,
@@ -87,6 +91,7 @@ void Initialize(v8::Local<v8::Object> exports,
   dict.SetMethod("showMessageBox", &ShowMessageBox);
   dict.SetMethod("showErrorBox", &atom::ShowErrorBox);
   dict.SetMethod("showOpenDialog", &ShowOpenDialog);
+  dict.SetMethod("showSaveDialogSync", &ShowSaveDialogSync);
   dict.SetMethod("showSaveDialog", &ShowSaveDialog);
 #if defined(OS_MACOSX) || defined(OS_WIN)
   dict.SetMethod("showCertificateTrustDialog",

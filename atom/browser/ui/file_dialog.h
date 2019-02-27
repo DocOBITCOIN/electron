@@ -9,8 +9,11 @@
 #include <utility>
 #include <vector>
 
+#include "atom/common/native_mate_converters/file_path_converter.h"
+#include "atom/common/promise_util.h"
 #include "base/callback_forward.h"
 #include "base/files/file_path.h"
+#include "native_mate/dictionary.h"
 
 namespace atom {
 class NativeWindow;
@@ -38,18 +41,10 @@ typedef base::Callback<void(bool result,
                             const std::vector<base::FilePath>& paths,
                             const std::vector<std::string>& bookmarkData)>
     OpenDialogCallback;
-
-typedef base::Callback<void(bool result,
-                            const base::FilePath& path,
-                            const std::string& bookmarkData)>
-    SaveDialogCallback;
 #else
 typedef base::Callback<void(bool result,
                             const std::vector<base::FilePath>& paths)>
     OpenDialogCallback;
-
-typedef base::Callback<void(bool result, const base::FilePath& path)>
-    SaveDialogCallback;
 #endif
 
 struct DialogSettings {
@@ -76,10 +71,10 @@ bool ShowOpenDialog(const DialogSettings& settings,
 void ShowOpenDialog(const DialogSettings& settings,
                     const OpenDialogCallback& callback);
 
-bool ShowSaveDialog(const DialogSettings& settings, base::FilePath* path);
+bool ShowSaveDialogSync(const DialogSettings& settings, base::FilePath* path);
 
 void ShowSaveDialog(const DialogSettings& settings,
-                    const SaveDialogCallback& callback);
+                    atom::util::Promise promise);
 
 }  // namespace file_dialog
 
