@@ -1,5 +1,6 @@
 import { ipcRendererInternal } from '@electron/internal/renderer/ipc-renderer-internal'
 import * as errorUtils from '@electron/internal/common/error-utils'
+import * as valueUtils from '@electron/internal/common/value-utils'
 
 let nextId = 0
 
@@ -12,19 +13,19 @@ export function invoke<T> (command: string, ...args: any[]) {
       if (error) {
         reject(errorUtils.deserialize(error))
       } else {
-        resolve(result)
+        resolve(valueUtils.deserialize(result))
       }
     })
-    ipcRendererInternal.send(command, requestId, ...args)
+    ipcRendererInternal.send(command, requestId, ...valueUtils.serialize(args))
   })
 }
 
 export function invokeSync<T> (command: string, ...args: any[]): T {
-  const [ error, result ] = ipcRendererInternal.sendSync(command, null, ...args)
+  const [ error, result ] = ipcRendererInternal.sendSync(command, null, ...valueUtils.serialize(args))
 
   if (error) {
     throw errorUtils.deserialize(error)
   } else {
-    return result
+    return valueUtils.deserialize(result)
   }
 }
