@@ -81,20 +81,21 @@ bool OpenItem(const base::FilePath& full_path) {
   return XDGOpen(full_path.value(), false);
 }
 
-bool OpenExternal(const GURL& url, const OpenExternalOptions& options) {
-  // Don't wait for exit, since we don't want to wait for the browser/email
-  // client window to close before returning
-  if (url.SchemeIs("mailto"))
-    return XDGEmail(url.spec(), false);
-  else
-    return XDGOpen(url.spec(), false);
-}
-
 void OpenExternal(const GURL& url,
                   const OpenExternalOptions& options,
-                  OpenExternalCallback callback) {
-  // TODO(gabriel): Implement async open if callback is specified
-  std::move(callback).Run(OpenExternal(url, options) ? "" : "Failed to open");
+                  base::Optional<OpenExternalCallback> callback) {
+  if (callback) {
+    // TODO(gabriel): Implement async open if callback is specified
+    std::move(callback).Run(OpenExternal(url, options) ? "" : "Failed to open");
+    else {
+      // Don't wait for exit, since we don't want to wait for the browser/email
+      // client window to close before returning
+      if (url.SchemeIs("mailto"))
+        ignore_result(XDGEmail(url.spec(), false));
+      else
+        ignore_result(XDGOpen(url.spec(), false));
+    }
+  }
 }
 
 bool MoveItemToTrash(const base::FilePath& full_path) {

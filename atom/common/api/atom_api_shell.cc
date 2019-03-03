@@ -52,13 +52,7 @@ void OnOpenExternalFinished(atom::util::Promise promise,
     promise.RejectWithErrorMessage(error.c_str());
 }
 
-bool OpenExternalSync(
-#if defined(OS_WIN)
-    const base::string16& url,
-#else
-    const GURL& url,
-#endif
-    mate::Arguments* args) {
+void OpenExternalSync(const GURL& url, mate::Arguments* args) {
   platform_util::OpenExternalOptions options;
   if (args->Length() >= 2) {
     mate::Dictionary obj;
@@ -68,17 +62,12 @@ bool OpenExternalSync(
     }
   }
 
-  return platform_util::OpenExternal(url, options);
+  platform_util::OpenExternal(url, options, base::nullopt);
 }
 
-v8::Local<v8::Promise> OpenExternal(
-#if defined(OS_WIN)
-    const base::string16& url,
-#else
-    const GURL& url,
-#endif
-    mate::Arguments* args) {
+v8::Local<v8::Promise> OpenExternal(const GURL& url, mate::Arguments* args) {
   atom::util::Promise promise(args->isolate());
+  v8::Local<v8::Promise> handle = promise.GetHandle();
 
   platform_util::OpenExternalOptions options;
   if (args->Length() >= 2) {
@@ -89,7 +78,6 @@ v8::Local<v8::Promise> OpenExternal(
     }
   }
 
-  v8::Local<v8::Promise> handle = promise.GetHandle();
   platform_util::OpenExternal(
       url, options,
       base::BindOnce(&OnOpenExternalFinished, std::move(promise)));

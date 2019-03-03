@@ -36,9 +36,9 @@ struct OpenExternalOptions {
 
 // Open the given external protocol URL in the desktop's default manner.
 // (For example, mailto: URLs in the default mail user agent.)
-bool OpenExternal(const GURL& url,
+void OpenExternal(const GURL& url,
                   const OpenExternalOptions& options,
-                  mate::Arguments* args);
+                  base::Optional<OpenExternalCallback> callback);
 
 // Move a file to trash.
 bool MoveItemToTrash(const base::FilePath& full_path);
