@@ -116,7 +116,7 @@ Clears the session’s HTTP cache.
 
 **[Deprecated Soon](promisification.md)**
 
-#### `ses.clearCache(callback)`
+#### `ses.clearCache()`
 
 Returns `Promise<void>` - resolves when the cache clear operation is complete.
 

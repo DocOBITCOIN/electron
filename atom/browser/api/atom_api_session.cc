@@ -221,28 +221,42 @@ void RunCallbackInUI(const base::Callback<void(T...)>& callback, T... result) {
                            base::BindOnce(callback, result...));
 }
 
-void RejectPromise(atom::util::Promise promise, int error) {
-  std::string errmsg =
-      "Failed to size failed with error number: " + std::to_string(error);
-  promise.RejectWithErrorMessage(errmsg);
-}
-
-void RejectPromiseInUI(atom::util::Promise promise, int error) {
-  base::PostTaskWithTraits(
-      FROM_HERE, {BrowserThread::UI},
-      base::BindOnce(RejectPromise, std::move(promise), error));
-}
-
-template <typename T>
-void ResolvePromise(atom::util::Promise promise, T result) {
+void ResolvePromise(atom::util::Promise promise, int result) {
   promise.Resolve(result);
 }
 
-template <typename T>
-void ResolvePromiseInUI(atom::util::Promise promise, T result) {
+void ResolvePromise(atom::util::Promise promise) {
+  promise.Resolve();
+}
+
+void RejectPromise(atom::util::Promise promise, int net_error) {
+  std::string err_msg =
+      "Failed to retrieve cache backend: " + net::ErrorToString(net_error);
+  promise.RejectWithErrorMessage(err_msg);
+}
+
+void RejectPromiseInUI(atom::util::Promise promise, int net_error) {
   base::PostTaskWithTraits(
       FROM_HERE, {BrowserThread::UI},
-      base::BindOnce(ResolvePromise<T>, std::move(promise), result));
+      base::BindOnce(&RejectPromise, std::move(promise), net_error));
+}
+
+void ResolvePromiseInUI(atom::util::Promise promise, int result) {
+  base::PostTaskWithTraits(
+      FROM_HERE, {BrowserThread::UI},
+      base::BindOnce(&ResolvePromise, std::move(promise), result));
+}
+
+void ResolvePromiseInUI(atom::util::Promise promise) {
+  base::PostTaskWithTraits(FROM_HERE, {BrowserThread::UI},
+                           base::BindOnce(&ResolvePromise, std::move(promise)));
+}
+
+void ResolveOrRejectPromiseInUI(atom::util::Promise promise, int net_error) {
+  if (net_error != net::OK)
+    RejectPromiseInUI(std::move(promise), net_error);
+  else
+    ResolvePromiseInUI(std::move(promise));
 }
 
 // Callback of HttpCache::GetBackend.
@@ -254,9 +268,12 @@ void OnGetBackend(disk_cache::Backend** backend_ptr,
     RejectPromiseInUI(promise.GetPromise(), result);
   } else if (backend_ptr && *backend_ptr) {
     if (action == Session::CacheAction::CLEAR) {
-      (*backend_ptr)
-          ->DoomAllEntries(
-              base::BindOnce(&ResolvePromiseInUI<int>, promise.GetPromise()));
+      auto success =
+          (*backend_ptr)
+              ->DoomAllEntries(base::BindOnce(&ResolveOrRejectPromiseInUI,
+                                              promise.GetPromise()));
+      if (success != net::ERR_IO_PENDING)
+        ResolveOrRejectPromiseInUI(promise.GetPromise(), success);
     } else if (action == Session::CacheAction::STATS) {
       base::StringPairs stats;
       (*backend_ptr)->GetStats(&stats);
@@ -269,8 +286,6 @@ void OnGetBackend(disk_cache::Backend** backend_ptr,
         }
       }
     }
-  } else {
-    RejectPromiseInUI(promise.GetPromise(), net::ERR_FAILED);
   }
 }
 
@@ -281,8 +296,10 @@ void DoCacheActionInIO(
   auto* request_context = context_getter->GetURLRequestContext();
 
   auto* http_cache = request_context->http_transaction_factory()->GetCache();
-  if (!http_cache)
+  if (!http_cache) {
     RejectPromiseInUI(std::move(promise), net::ERR_FAILED);
+    return;
+  }
 
   // Call GetBackend and make the backend's ptr accessable in OnGetBackend.
   using BackendPtr = disk_cache::Backend*;
@@ -452,6 +469,7 @@ template <Session::CacheAction action>
 v8::Local<v8::Promise> Session::DoCacheAction() {
   v8::Isolate* isolate = v8::Isolate::GetCurrent();
   util::Promise promise(isolate);
+  v8::Local<v8::Promise> handle = promise.GetHandle();
 
   base::PostTaskWithTraits(
       FROM_HERE, {BrowserThread::IO},
@@ -459,7 +477,7 @@ v8::Local<v8::Promise> Session::DoCacheAction() {
                      WrapRefCounted(browser_context_->GetRequestContext()),
                      action, std::move(promise)));
 
-  return promise.GetHandle();
+  return handle;
 }
 
 void Session::ClearStorageData(mate::Arguments* args) {
